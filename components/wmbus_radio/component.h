@@ -8,6 +8,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/gpio.h"
+#include "esphome/core/helpers.h"
 
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/wmbus_common/wmbus.h"
@@ -39,6 +40,7 @@ protected:
   static void wakeup_receiver_from_isr(Radio *arg);
   volatile bool frame_ready_{false};
   uint32_t last_refresh_ms_{0};
+  HighFrequencyLoopRequester high_freq_;
 #endif
 
   RadioTransceiver *radio{nullptr};

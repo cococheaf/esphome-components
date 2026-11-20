@@ -311,9 +311,6 @@ const char *CC1101::get_name() { return TAG; }
 bool CC1101::read_in_task(uint8_t *buffer, size_t length, uint32_t offset) {
   size_t total = 0;
   uint32_t last_progress = millis();
-#ifdef USE_ESP8266
-  uint32_t last_yield = last_progress;
-#endif
 
   while (total < length) {
     // Check for FIFO overflow
@@ -329,9 +326,9 @@ bool CC1101::read_in_task(uint8_t *buffer, size_t length, uint32_t offset) {
 
     if (available > 0) {
       // CC1101 errata: don't empty FIFO completely when more data expected
-      size_t to_read = (remaining > 1 && available > 1)
-                       ? std::min((size_t)(available - 1), remaining)
-                       : std::min((size_t)available, remaining);
+      size_t to_read = remaining > 1
+                           ? (available > 1 ? std::min((size_t)(available - 1), remaining) : 0)
+                           : std::min((size_t)available, remaining);
 
       if (to_read > 0) {
         if (total == 0 && offset == 0) {
@@ -340,6 +337,8 @@ bool CC1101::read_in_task(uint8_t *buffer, size_t length, uint32_t offset) {
         this->read_burst(CC1101_RXFIFO, buffer + total, to_read);
         total += to_read;
         last_progress = millis();
+        if (total < length)
+          continue;
       }
     }
 
@@ -363,13 +362,11 @@ bool CC1101::read_in_task(uint8_t *buffer, size_t length, uint32_t offset) {
       return false;
     }
 
-    delayMicroseconds(200);
+    delayMicroseconds(100);
 #ifdef USE_ESP8266
-    // The ESP8266 has no radio task; keep its watchdog fed while polling FIFO.
-    if (millis() - last_yield >= 2) {
+    // Do not yield while bytes are arriving: the 64-byte FIFO fills in 5 ms.
+    if (millis() - last_progress > 5)
       yield();
-      last_yield = millis();
-    }
 #endif
   }
 

@@ -41,6 +41,7 @@ void Radio::setup() {
                                      &(this->receiver_task_handle_));
 #else
   this->radio->attach_data_interrupt(Radio::wakeup_receiver_from_isr, this);
+  this->high_freq_.start();
   this->last_refresh_ms_ = millis();
 #endif
 }
