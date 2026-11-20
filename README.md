@@ -1,5 +1,23 @@
 Version 5 based on Kuba's dirty [fork](https://github.com/IoTLabs-pl/esphome-components).
 
+## ESP8266 CC1101 support in this fork
+
+This fork keeps the ESP32/ESP-IDF receiver and adds an ESP8266/Arduino path for
+CC1101 radios. Other radios are ESP32-only. The ESP8266 receives frames in its
+main loop instead of a FreeRTOS task. The large manufacturer-name table is
+omitted on ESP8266 to save RAM; the three-letter manufacturer code is retained.
+CC1101 RSSI and LQI are available as meter sensor fields.
+
+See [the D1 Mini / IZAR example](examples/esp8266-cc1101-izar.yaml). Replace
+its example meter ID and provide your own ESPHome secrets. Version 3's `wmbus:`
+and `platform: wmbus` syntax is not compatible with version 5; use `spi:`,
+`wmbus_radio:`, `wmbus_meter:` and `platform: wmbus_meter` instead. A CC1101
+GDO0 interrupt is required; GDO2 is not used in this configuration.
+
+The example was compiled with ESPHome 2026.11.0 for `d1_mini`. Radio reception
+and decoded readings still require a hardware test before replacing a working
+version 3 installation.
+
 # TODO:
 - Prepare packages for ready made boards (like UltimateReader) with displays, leds etc.
 - Aggresive cleanup of wmbusmeters classes/structs

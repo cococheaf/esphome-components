@@ -176,6 +176,7 @@ std::string LinkModeSet::hr() {
   return r;
 }
 
+#ifndef USE_ESP8266
 struct Manufacturer {
   const char *code;
   int m_field;
@@ -203,6 +204,7 @@ Initializer::Initializer() {
   LIST_OF_MANUFACTURERS
 #undef X
 }
+#endif
 
 void Telegram::addAddressMfctFirst(const std::vector<uchar>::iterator &pos) {
   Address a;
@@ -336,6 +338,9 @@ void Telegram::printTPL() {
 }
 
 std::string manufacturer(int m_field) {
+#ifdef USE_ESP8266
+  return manufacturerFlag(m_field);
+#else
   for (auto &m : manufacturers_) {
     if (m.m_field == m_field)
       return m.name;
@@ -348,6 +353,7 @@ std::string manufacturer(int m_field) {
       return m.name;
   }
   return "Unknown";
+#endif
 }
 
 std::string mediaType(int a_field_device_type, int m_field) {

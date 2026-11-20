@@ -2,8 +2,10 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/optional.h"
+#ifdef USE_ESP32
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#endif
 #include <cstdint>
 #include <string>
 
@@ -47,6 +49,7 @@ public:
   // True when the receiver is idle (no sync word, empty FIFO) and may be restarted.
   virtual bool idle_restart_ready() { return false; }
   virtual int8_t get_rssi() = 0;
+  virtual uint8_t get_lqi() { return 0; }
   virtual const char *get_name() = 0;
 
   // Frame-based reading interface

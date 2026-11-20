@@ -2,6 +2,7 @@ from contextlib import suppress
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins, automation
+from esphome.core import CORE
 from esphome.components import spi
 from esphome.cpp_generator import LambdaExpression
 from esphome.const import (
@@ -16,7 +17,7 @@ from pathlib import Path
 
 CODEOWNERS = ["@SzczepanLeon", "@kubasaw"]
 
-DEPENDENCIES = ["esp32", "spi"]
+DEPENDENCIES = ["spi"]
 
 AUTO_LOAD = ["wmbus_common"]
 
@@ -54,6 +55,8 @@ _selected_radio_types = set()
 
 def _validate_radio_type(value):
     value = cv.one_of(*TRANSCEIVER_NAMES, upper=True)(value)
+    if CORE.is_esp8266 and value != "CC1101":
+        raise cv.Invalid("ESP8266 currently supports only the CC1101 radio")
     _selected_radio_types.add(value)
     return value
 

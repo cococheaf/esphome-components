@@ -35,6 +35,7 @@ LinkMode Packet::link_mode() {
 }
 
 void Packet::set_rssi(int8_t rssi) { this->rssi_ = rssi; }
+void Packet::set_lqi(uint8_t lqi) { this->lqi_ = lqi; }
 
 // Get value of L-field
 uint8_t Packet::l_field() {
@@ -84,15 +85,11 @@ size_t Packet::expected_size() {
   return this->expected_size_;
 }
 
-size_t Packet::rx_capacity() {
-  // TODO: Remove side effects?
-  auto cap = this->data_.capacity() - this->data_.size();
+std::pair<uint8_t *, size_t> Packet::prepare_receive() {
+  const auto offset = this->data_.size();
+  const auto cap = this->data_.capacity() - offset;
   this->data_.resize(this->data_.capacity());
-  return cap;
-}
-
-uint8_t *Packet::rx_data_ptr() {
-  return this->data_.data() + this->data_.size();
+  return {this->data_.data() + offset, cap};
 }
 
 bool Packet::calculate_payload_size() {
@@ -153,11 +150,12 @@ std::optional<Frame> Packet::convert_to_frame() {
 
 Frame::Frame(Packet *packet)
     : data_(std::move(packet->data_)), link_mode_(packet->link_mode_),
-      rssi_(packet->rssi_), format_(packet->frame_format_) {}
+      rssi_(packet->rssi_), lqi_(packet->lqi_), format_(packet->frame_format_) {}
 
 std::vector<uint8_t> &Frame::data() { return this->data_; }
 LinkMode Frame::link_mode() { return this->link_mode_; }
 int8_t Frame::rssi() { return this->rssi_; }
+uint8_t Frame::lqi() { return this->lqi_; }
 std::string Frame::format() { return this->format_; }
 
 std::vector<uint8_t> Frame::as_raw() { return this->data_; }

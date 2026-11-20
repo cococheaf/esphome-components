@@ -19,7 +19,6 @@
 
 #include <algorithm>
 #include <assert.h>
-#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <functional>

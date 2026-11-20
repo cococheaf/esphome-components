@@ -5,6 +5,7 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include <utility>
 
 #include "esphome/components/wmbus_common/wmbus.h"
 #include "esphome/core/helpers.h"
@@ -19,10 +20,10 @@ struct Packet {
 public:
   Packet();
 
-  uint8_t *rx_data_ptr();
-  size_t rx_capacity();
+  std::pair<uint8_t *, size_t> prepare_receive();
   bool calculate_payload_size();
   void set_rssi(int8_t rssi);
+  void set_lqi(uint8_t lqi);
 
   std::optional<Frame> convert_to_frame();
 
@@ -34,6 +35,7 @@ protected:
 
   uint8_t l_field();
   int8_t rssi_ = 0;
+  uint8_t lqi_ = 0;
 
   LinkMode link_mode();
   LinkMode link_mode_ = LinkMode::UNKNOWN;
@@ -48,6 +50,7 @@ public:
   std::vector<uint8_t> &data();
   LinkMode link_mode();
   int8_t rssi();
+  uint8_t lqi();
   std::string format();
 
   std::vector<uint8_t> as_raw();
@@ -61,6 +64,7 @@ protected:
   std::vector<uint8_t> data_;
   LinkMode link_mode_;
   int8_t rssi_;
+  uint8_t lqi_;
   std::string format_;
   uint8_t handlers_count_ = 0;
 };

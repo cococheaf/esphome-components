@@ -1,7 +1,9 @@
 #include "component.h"
 
+#ifdef USE_ESP32
 #include "freertos/queue.h"
 #include "freertos/task.h"
+#endif
 
 #define ASSERT(expr, expected, before_exit)                                    \
   {                                                                            \
@@ -20,6 +22,7 @@ namespace wmbus_radio {
 static const char *TAG = "wmbus";
 
 void Radio::setup() {
+#ifdef USE_ESP32
   ASSERT_SETUP(this->packet_queue_ = xQueueCreate(3, sizeof(Packet *)));
 
   // High priority to avoid FIFO overflow (fills in 5.12ms at 100kbps).
@@ -36,13 +39,35 @@ void Radio::setup() {
 
   this->radio->attach_data_interrupt(Radio::wakeup_receiver_task_from_isr,
                                      &(this->receiver_task_handle_));
+#else
+  this->radio->attach_data_interrupt(Radio::wakeup_receiver_from_isr, this);
+  this->last_refresh_ms_ = millis();
+#endif
 }
 
 void Radio::loop() {
+#ifdef USE_ESP32
   Packet *p;
   if (xQueueReceive(this->packet_queue_, &p, 0) != pdPASS)
     return;
+  this->handle_packet(p);
+#else
+  if (this->frame_ready_) {
+    this->frame_ready_ = false;
+    this->receive_frame();
+    this->last_refresh_ms_ = millis();
+  } else {
+    const uint32_t interval = this->radio->idle_refresh_interval_ms();
+    if (interval && millis() - this->last_refresh_ms_ >= interval) {
+      this->last_refresh_ms_ = millis();
+      if (!this->frame_ready_ && this->radio->idle_restart_ready())
+        this->radio->restart_rx();
+    }
+  }
+#endif
+}
 
+void Radio::handle_packet(Packet *p) {
   // ESP_LOGI(TAG, "Have RAW data from radio (%zu bytes)",
   //          p->calculate_payload_size());
 
@@ -55,7 +80,6 @@ void Radio::loop() {
            frame->data().size(), frame->rssi(), toString(frame->link_mode()),
            frame->format().c_str());
 
-  uint8_t packet_handled = 0;
   for (auto &handler : this->handlers_)
     handler(&frame.value());
 
@@ -70,22 +94,28 @@ void Radio::loop() {
       ESP_LOGW(TAG, "Check if telegram with address %s can be parsed on:",
                t.addresses.back().id.c_str());
     }
-    ESP_LOGW(TAG,
-             (std::string{"https://wmbusmeters.org/analyze/"} + frame->as_hex())
-                 .c_str());
+    ESP_LOGW(TAG, "https://wmbusmeters.org/analyze/%s",
+             frame->as_hex().c_str());
   }
 }
 
+#ifdef USE_ESP32
 void Radio::wakeup_receiver_task_from_isr(TaskHandle_t *arg) {
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
   vTaskNotifyGiveFromISR(*arg, &xHigherPriorityTaskWoken);
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
+#else
+void IRAM_ATTR Radio::wakeup_receiver_from_isr(Radio *arg) {
+  arg->frame_ready_ = true;
+}
+#endif
 
 void Radio::receive_frame() {
   // A radio may ask for its receiver to be restarted at a short interval while it
   // waits for a frame (CC1101 does, as version_3 did). It is only restarted while idle,
   // never once a sync word or FIFO data was seen. The overall 60 s timeout is kept.
+#ifdef USE_ESP32
   const uint32_t refresh_ms = this->radio->idle_refresh_interval_ms();
   uint32_t got = 0;
   if (refresh_ms == 0) {
@@ -111,10 +141,12 @@ void Radio::receive_frame() {
     this->radio->restart_rx();
     return;
   }
+#endif
 
   auto packet = std::make_unique<Packet>();
 
-  if (!this->radio->read_in_task(packet->rx_data_ptr(), packet->rx_capacity(), 0)) {
+  auto first = packet->prepare_receive();
+  if (!this->radio->read_in_task(first.first, first.second, 0)) {
     this->radio->restart_rx();
     return;
   }
@@ -124,18 +156,20 @@ void Radio::receive_frame() {
     return;
   }
 
-  if (!this->radio->read_in_task(packet->rx_data_ptr(), packet->rx_capacity(), 3)) {
+  auto rest = packet->prepare_receive();
+  if (!this->radio->read_in_task(rest.first, rest.second, 3)) {
     this->radio->restart_rx();
     return;
   }
 
   packet->set_rssi(this->radio->get_rssi());
+  packet->set_lqi(this->radio->get_lqi());
 
   // Re-arm sync word detector for next packet
   this->radio->restart_rx();
 
+#ifdef USE_ESP32
   auto packet_ptr = packet.get();
-
   if (xQueueSend(this->packet_queue_, &packet_ptr, 0) == pdTRUE) {
     ESP_LOGV(TAG, "Queue items: %zu",
              uxQueueMessagesWaiting(this->packet_queue_));
@@ -143,12 +177,17 @@ void Radio::receive_frame() {
     packet.release();
   } else
     ESP_LOGW(TAG, "Queue send failed");
+#else
+  this->handle_packet(packet.release());
+#endif
 }
 
+#ifdef USE_ESP32
 void Radio::receiver_task(Radio *arg) {
   while (true)
     arg->receive_frame();
 }
+#endif
 
 void Radio::add_frame_handler(std::function<void(Frame *)> &&callback) {
   this->handlers_.push_back(std::move(callback));

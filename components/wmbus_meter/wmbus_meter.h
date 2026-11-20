@@ -35,6 +35,7 @@ protected:
 
   std::shared_ptr<::Meter> meter;
   std::unique_ptr<Telegram> last_telegram;
+  uint8_t last_lqi_{0};
 
   CallbackManager<void()> on_telegram_callback_manager;
 

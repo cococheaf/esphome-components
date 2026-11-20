@@ -256,7 +256,9 @@ void CC1101::restart_rx() {
   // Flush RX FIFO (also leaves RXFIFO_OVERFLOW)
   this->strobe(CC1101_SFRX);
 
+#ifdef USE_ESP32
   ulTaskNotifyTake(pdTRUE, 0);
+#endif
 
   // Enter RX mode (calibrates on IDLE -> RX with FS_AUTOCAL)
   this->strobe(CC1101_SRX);
@@ -300,11 +302,18 @@ int8_t CC1101::get_rssi() {
   return (int8_t)rssi_dbm;
 }
 
+uint8_t CC1101::get_lqi() {
+  return this->read_status_register(CC1101_LQI) & 0x7F;
+}
+
 const char *CC1101::get_name() { return TAG; }
 
 bool CC1101::read_in_task(uint8_t *buffer, size_t length, uint32_t offset) {
   size_t total = 0;
   uint32_t last_progress = millis();
+#ifdef USE_ESP8266
+  uint32_t last_yield = last_progress;
+#endif
 
   while (total < length) {
     // Check for FIFO overflow
@@ -355,6 +364,13 @@ bool CC1101::read_in_task(uint8_t *buffer, size_t length, uint32_t offset) {
     }
 
     delayMicroseconds(200);
+#ifdef USE_ESP8266
+    // The ESP8266 has no radio task; keep its watchdog fed while polling FIFO.
+    if (millis() - last_yield >= 2) {
+      yield();
+      last_yield = millis();
+    }
+#endif
   }
 
   return (total == length);

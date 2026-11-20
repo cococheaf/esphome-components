@@ -169,6 +169,7 @@ public:
   uint32_t idle_refresh_interval_ms() override { return 50; }
   bool idle_restart_ready() override;
   int8_t get_rssi() override;
+  uint8_t get_lqi() override;
   const char *get_name() override;
 
 protected:

@@ -102,6 +102,7 @@ void Meter::handle_frame(wmbus_radio::Frame *frame) {
                               telegram.get());
 
   if (id_match) {
+    this->last_lqi_ = frame->lqi();
     this->last_telegram = std::move(telegram);
     this->defer([this]() {
       this->on_telegram_callback_manager();
@@ -148,6 +149,12 @@ optional<float> Meter::get_numeric_field(std::string field_name) {
     if (this->last_telegram == nullptr)
       return {};
     return this->last_telegram->about.rssi_dbm;
+  }
+
+  if (field_name == "lqi") {
+    if (this->last_telegram == nullptr)
+      return {};
+    return this->last_lqi_;
   }
 
   if (field_name == "timestamp")

@@ -2,7 +2,9 @@
 
 #include "esphome/core/log.h"
 
+#ifdef USE_ESP32
 #include "freertos/FreeRTOS.h"
+#endif
 
 namespace esphome {
 namespace wmbus_radio {
@@ -15,8 +17,12 @@ bool RadioTransceiver::read_in_task(uint8_t *buffer, size_t length, uint32_t off
     if (got > 0) {
       total += got;
     } else {
+#ifdef USE_ESP32
       if (!ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1)))
         return false;
+#else
+      return false;
+#endif
     }
   }
   return true;
