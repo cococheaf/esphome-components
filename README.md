@@ -12,7 +12,9 @@ See [the D1 Mini / IZAR example](examples/esp8266-cc1101-izar.yaml). Replace
 its example meter ID and provide your own ESPHome secrets. Version 3's `wmbus:`
 and `platform: wmbus` syntax is not compatible with version 5; use `spi:`,
 `wmbus_radio:`, `wmbus_meter:` and `platform: wmbus_meter` instead. A CC1101
-GDO0 interrupt is required; GDO2 is not used in this configuration.
+GDO2 sync-word output is recommended for ESP8266 because its main loop needs
+the earliest possible interrupt to drain the 64-byte CC1101 RX FIFO. Connect
+GDO2 to the example's IRQ pin. GDO0 can remain connected but is unused there.
 
 The example was compiled with ESPHome 2026.11.0 for `d1_mini`. Radio reception
 and decoded readings still require a hardware test before replacing a working

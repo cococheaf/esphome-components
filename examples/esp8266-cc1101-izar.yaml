@@ -32,7 +32,7 @@ spi:
 wmbus_radio:
   radio_type: CC1101
   cs_pin: GPIO15
-  irq_pin: GPIO5
+  irq_pin: GPIO4  # CC1101 GDO2: interrupt as soon as the sync word is seen.
   frequency: 868.95MHz
 
 wmbus_meter:

@@ -303,7 +303,7 @@ int8_t CC1101::get_rssi() {
 }
 
 uint8_t CC1101::get_lqi() {
-  return this->read_status_register(CC1101_LQI) & 0x7F;
+  return this->read_status_register(CC1101_LQI);
 }
 
 const char *CC1101::get_name() { return TAG; }
