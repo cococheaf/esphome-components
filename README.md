@@ -1,286 +1,63 @@
-Version 5 based on Kuba's dirty [fork](https://github.com/IoTLabs-pl/esphome-components).
+# Wireless M-Bus components for ESPHome
 
-## ESP8266 CC1101 support in this fork
+ESPHome external components for receiving Wireless M-Bus telegrams with a
+CC1101, SX1276, or SX1262 radio and decoding supported meters. The supported
+microcontroller families are **ESP32 and ESP8266**.
 
-This fork keeps the ESP32/ESP-IDF receiver and adds an ESP8266/Arduino path for
-CC1101 radios. Other radios are ESP32-only. The ESP8266 receives frames in its
-main loop instead of a FreeRTOS task. The large manufacturer-name table is
-omitted on ESP8266 to save RAM; the three-letter manufacturer code is retained.
-CC1101 RSSI and LQI are available as meter sensor fields.
+## Compatibility
 
-See [the D1 Mini / IZAR example](examples/esp8266-cc1101-izar.yaml). Replace
-its example meter ID and provide your own ESPHome secrets. Version 3's `wmbus:`
-and `platform: wmbus` syntax is not compatible with version 5; use `spi:`,
-`wmbus_radio:`, `wmbus_meter:` and `platform: wmbus_meter` instead. A CC1101
-GDO2 sync-word output is recommended for ESP8266 because its main loop needs
-the earliest possible interrupt to drain the 64-byte CC1101 RX FIFO. The
-ESP8266 receiver keeps ESPHome's component loop at high frequency and does not
-yield while bytes arrive. Connect GDO2 to the example's IRQ pin. GDO0 can
-remain connected but is unused there.
+| Platform | Radio | Status |
+| --- | --- | --- |
+| ESP8266 / Arduino | CC1101 | Built and tested with a Wemos D1 Mini, Diehl IZAR, and ESPHome 2026.11.0 |
+| ESP8266 / Arduino | SX1276, SX1262 | Not supported |
+| ESP32 / ESP-IDF | CC1101, SX1276, SX1262 | Retained from upstream; not retested for this fork |
 
-The example was compiled with ESPHome 2026.11.0 for `d1_mini`. Radio reception
-and decoded readings still require a hardware test before replacing a working
-version 3 installation.
+Use a fixed tag in production:
 
-# TODO:
-- Prepare packages for ready made boards (like UltimateReader) with displays, leds etc.
-- Aggresive cleanup of wmbusmeters classes/structs
-- Refactor traces/logs
-
-# DONE:
-- Add long frame (>255 bytes) reception for SX1262
-- Add configurable frequency for CC1101 (300–928 MHz, default 868.95 MHz)
-- Add CC1101 support with FIFO overflow handling and errata workaround
-- Add support for SX1262 (with limited frame length)
-- Reuse CRCs and frame parsers from wmbusmeters
-- Refactor 3out6 decoder
-- Migrate to esp-idf and drop Arduino!
-- Add support for SX1276
-- Run receiver in separate task
-- Drop all non wmbus related components from rf code part
-- Allow to specify ASCII decription key
-- Divide codebase to separate components (radio for radio communication, meter for meters (on which sensor may subscribe) and common for wmbusmeters code)
-- Add triggers:
-  - Radio->on packet (allow to blink on frame/telegram)
-  - Meter->on telegram (allow e.g. to send whole telegram to MQTT)
-- Re-pull of wmbusmeters code from upstream
-- Reimplement TCP and UCP senders. Should be classes with common interface to use as action under Radio->on packet trigger
-- Reimplement HEX and RTLWMBUS formatter to use as parameter of TCP/UDP action
-
-
-# Usage example:
 ```yaml
-esphome:
-  name: wmbus
-  friendly_name: WMBus
-  platformio_options:
-    upload_speed: 921600
-
 external_components:
-  - source: github://SzczepanLeon/esphome-components@main
-
-esp32:
-  board: heltec_wifi_lora_32_V2
-  flash_size: 8MB
-  framework:
-    type: esp-idf
-  
-logger:
-  id: component_logger
-  level: DEBUG
-  baud_rate: 115200
-
-wifi:
-  networks:
-    - ssid: !secret wifi_ssid
-      password: !secret wifi_password
-
-api:
-
-web_server:
-  version: 3 
-
-# Optional - only needed for the timestamp / timestamp_zulu fields below
-time:
-  - platform: homeassistant
-
-spi:
-  clk_pin:
-    number: GPIO5
-    ignore_strapping_warning: true
-  mosi_pin: GPIO27
-  miso_pin: GPIO19
-
-socket_transmitter:
-  id: my_socket
-  ip_address: 192.168.1.1
-  port: 3333
-  protocol: TCP
-
-mqtt:
-  broker: test.mosquitto.org
-  port: 1883
-  client_id: some_client_id
-
-wmbus_radio:
-  radio_type: SX1276
-  cs_pin: GPIO18
-  reset_pin: GPIO14
-  irq_pin: GPIO35
-  on_frame:
-    - then:
-        - logger.log:
-            format: "RSSI: %ddBm T: %s (%d)"
-            args: [ frame->rssi(), frame->as_hex().c_str(), frame->data().size() ]
-    - then:
-        - repeat:
-            count: 3
-            then:
-              - output.turn_on: status_led
-              - delay: 100ms
-              - output.turn_off: status_led
-              - delay: 100ms
-    - mark_as_handled: True
-      then:
-        - mqtt.publish:
-            topic: wmbus-test/telegram_rtl
-            payload: !lambda return frame->as_rtlwmbus();
-    - mark_as_handled: True
-      then:
-        - socket_transmitter.send:
-            data: !lambda return frame->as_hex();
-
-wmbus_meter:
-  - id: electricity_meter
-    meter_id: 0x0101010101
-    type: amiplus
-    key: 00000000000000000000000000000000
-    mode: 
-      - T1
-      - C1
-  - id: heat_meter
-    meter_id: 12321
-    type: hydrocalm3
-    on_telegram:
-      then:
-        - wmbus_meter.send_telegram_with_mqtt:
-            topic: wmbus-test/telegram
-
-output:
-  - platform: gpio
-    id: vext_output
-    pin: GPIO21
-  - platform: gpio
-    id: oled_reset
-    pin: GPIO16
-    inverted: True
-  - platform: gpio
-    id: status_led
-    pin: GPIO25
-
-sensor:
-  - platform: wmbus_meter
-    parent_id: heat_meter
-    field: total_heating_kwh
-    device_class: energy
-    name: Zużycie energii cieplnej
-    accuracy_decimals: 4
-    state_class: total_increasing
-
-  - platform: wmbus_meter
-    parent_id: electricity_meter
-    field: current_power_consumption_kw
-    name: Moc aktualna
-    accuracy_decimals: 0
-    device_class: power
-    unit_of_measurement: W
-    state_class: measurement
-    filters:
-      - multiply: 1000
-
-  - platform: wmbus_meter
-    parent_id: electricity_meter
-    field: total_energy_consumption_kwh
-    name: Zużycie energii
-    accuracy_decimals: 3
-    device_class: energy
-    state_class: total_increasing
-
-  - platform: wmbus_meter
-    parent_id: electricity_meter
-    field: rssi_dbm
-    name: Electricity Meter RSSI
-
-text_sensor:
-  - platform: wmbus_meter
-    parent_id: electricity_meter
-    field: timestamp
-    name: Electricity Meter timestamp
-
-  - platform: wmbus_meter
-    parent_id: electricity_meter
-    field: timestamp_zulu
-    name: Electricity Meter timestamp zulu
-
-  - platform: wmbus_meter
-    parent_id: electricity_meter
-    field: current_alarms
-    name: Electricity Meter alarms
+  - source: github://cococheaf/esphome-components@v5-esp8266.3
+    components: [wmbus_common, wmbus_radio, wmbus_meter]
 ```
 
-## Radio Configuration
+Start with an example without personal network details:
 
-### CC1101
-For CC1101 radio, configure the SPI bus and specify the chip select and IRQ (GDO0) pins. The CC1101 has no hardware reset pin — it uses a software reset (SRES strobe) automatically. See [ESP32-C3_SuperMini_CC1101.yaml](ESP32-C3_SuperMini_CC1101.yaml) for a complete working example.
+- [ESP8266 / D1 Mini / CC1101 / IZAR](examples/esp8266-cc1101-izar.yaml)
+- [ESP32 / CC1101 / IZAR](examples/esp32-cc1101-izar.yaml)
 
-```yaml
-spi:
-  clk_pin: GPIO5
-  mosi_pin: GPIO6
-  miso_pin: GPIO7
+Read the [ESP8266 setup and migration guide](docs/esp8266-cc1101.md) before
+replacing a working version 3 installation. For ESP32 radio wiring and
+supported variants, see [ESP32 setup](docs/esp32.md).
 
-wmbus_radio:
-  radio_type: CC1101
-  cs_pin: GPIO4
-  irq_pin: GPIO3
-  frequency: 868.95MHz   # Optional. Range: 300–928 MHz. Default: 868.95 MHz
-```
+## Configuration model
 
-| Option | Required | Default | Description |
-|---|---|---|---|
-| `radio_type` | yes | — | Must be `CC1101` |
-| `cs_pin` | yes | — | SPI chip select pin |
-| `irq_pin` | yes | — | Interrupt pin (GDO0) |
-| `frequency` | no | `868.95MHz` | Operating frequency, 300–928 MHz |
+Version 5 uses `spi:`, `wmbus_radio:`, `wmbus_meter:`, and
+`platform: wmbus_meter`. It is **not** a drop-in replacement for version 3's
+`wmbus:` and `platform: wmbus` YAML. Match `meter_id` to the address
+reported by the version 5 log, not automatically to the hexadecimal value in
+the old configuration. For the IZAR tested here, the version 3 ID
+`0x71840778` corresponds to version 5 ID `0x23537184`.
 
-Tested on ESP32-C3 Super Mini + CC1101 v2.0 (E07-M1101D-SMA) blue board.
+On ESP8266, CC1101 GDO2 is used for the sync-word interrupt. On ESP32, the
+CC1101 example uses GDO0 for the FIFO-threshold interrupt. The ESP8266 receiver
+drains the radio FIFO in ESPHome's high-frequency main loop; it does not use
+the ESP32 FreeRTOS receive task. The large manufacturer-name table is omitted
+on ESP8266 to conserve RAM; manufacturer codes are still available. Telegram
+RSSI and LQI can be exposed as diagnostic sensors.
 
+## Troubleshooting
 
-Another tested device: NodeMCU-32S (ESP-32S) Development Board, ESP-WROOM-32, ESP32 Dev Board + CC1101:
+- `Telegram not handled by any handler`: the radio received a frame, but no
+  configured meter matched it. Check the address printed in the log, meter
+  type, and (for encrypted meters) the key.
+- `RX FIFO overflow`: the receiver did not drain the CC1101 quickly enough
+  for that frame. Check GDO2 wiring, signal quality, and whether Wi-Fi or
+  logging is consuming CPU time. An occasional warning does not prove that
+  all readings are lost; verify that the total and RSSI continue updating.
+- `Disconnected from API` during OTA: the device restarts while flashing.
+  Confirm that it reconnects with the new ESPHome build before troubleshooting
+  the radio.
 
-```yaml
-spi:
-  clk_pin: GPIO33
-  mosi_pin: GPIO32
-  miso_pin: GPIO19
+For changes and known limitations, see [CHANGELOG.md](CHANGELOG.md).
 
-wmbus_radio:
-  radio_type: CC1101
-  cs_pin: GPIO23
-  irq_pin: GPIO22
-  frequency: 868.95MHz   # Optional. Range: 300–928 MHz. Default: 868.95 MHz
-```
-
-For full example see: [ESP32-NodeMcu-32s_CC1101.yaml](ESP32-NodeMcu-32s_CC1101.yaml)
-
-
-### SX1276
-For SX1276 radio you need to configure SPI instance as usual in ESPHome and additionally specify reset pin and IRQ pin (as DIO1). Interrupts are triggered on non empty FIFO.
-
-### SX1262
-For SX1262 radio, the configuration is similar but with additional options:
-
-```yaml
-wmbus_radio:
-  radio_type: SX1262
-  cs_pin: GPIO23
-  reset_pin: GPIO4
-  irq_pin: GPIO7
-  busy_pin: GPIO19           # Optional but recommended for proper timing
-  rx_gain: BOOSTED           # BOOSTED (default) or POWER_SAVING
-  rf_switch: false           # Set to true if DIO2 controls RF switch
-  has_tcxo: true             # By default, DIO3 controls an external TCXO
-```
-
-**SX1262-specific options:**
-- `busy_pin`: Optional GPIO for BUSY signal. Recommended for reliable operation.
-- `rx_gain`: RX gain mode - `BOOSTED` (better sensitivity, default) or `POWER_SAVING` (lower power)
-- `rf_switch`: Set to `true` if your board uses DIO2 to control the RF switch
-- `has_tcxo`: Set to `false` if your borad does not use DIO3 for control of an external TCXO
-
-Tested on M5Stack Stamp C6LoRa (ESP32-C6). 
-
-In order to pull latest wmbusmeters code run:
-```bash
-git subtree pull --prefix components/wmbus_common https://github.com/wmbusmeters/wmbusmeters.git <REF> --squash
-```
+Source acknowledgements and licensing notes are in [NOTICE.md](NOTICE.md).

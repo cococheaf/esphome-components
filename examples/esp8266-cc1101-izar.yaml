@@ -21,7 +21,7 @@ ota:
     password: !secret ota_password
 
 external_components:
-  - source: github://cococheaf/esphome-components@main
+  - source: github://cococheaf/esphome-components@v5-esp8266.3
     components: [wmbus_radio, wmbus_meter, wmbus_common]
 
 spi:
@@ -47,6 +47,7 @@ sensor:
     name: Water Total
     device_class: water
     state_class: total_increasing
+    unit_of_measurement: m³
     accuracy_decimals: 3
 
   - platform: wmbus_meter

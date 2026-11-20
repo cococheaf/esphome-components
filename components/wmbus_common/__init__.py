@@ -6,7 +6,7 @@ import esphome.config_validation as cv
 from esphome.const import SOURCE_FILE_EXTENSIONS, CONF_ID
 from esphome import codegen as cg
 
-CODEOWNERS = ["@SzczepanLeon", "@kubasaw"]
+CODEOWNERS = ["@cococheaf"]
 CONF_DRIVERS = "drivers"
 
 wmbus_common_ns = cg.esphome_ns.namespace("wmbus_common")

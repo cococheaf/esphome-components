@@ -1,0 +1,53 @@
+esphome:
+  name: wmbus-water-meter-esp32
+  friendly_name: Water Meter ESP32
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: INFO
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+external_components:
+  - source: github://cococheaf/esphome-components@v5-esp8266.3
+    components: [wmbus_common, wmbus_radio, wmbus_meter]
+
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+  miso_pin: GPIO19
+
+wmbus_radio:
+  radio_type: CC1101
+  cs_pin: GPIO21
+  irq_pin: GPIO4  # Connect to CC1101 GDO0 on ESP32.
+  frequency: 868.95MHz
+
+wmbus_meter:
+  - id: water_meter
+    meter_id: 0x12345678  # Replace with the address reported in the log.
+    type: izar
+
+sensor:
+  - platform: wmbus_meter
+    parent_id: water_meter
+    field: total_m3
+    name: Water Total
+    device_class: water
+    state_class: total_increasing
+    unit_of_measurement: m³
+    accuracy_decimals: 3

@@ -15,7 +15,7 @@ from esphome.const import (
 )
 from pathlib import Path
 
-CODEOWNERS = ["@SzczepanLeon", "@kubasaw"]
+CODEOWNERS = ["@cococheaf"]
 
 DEPENDENCIES = ["spi"]
 
@@ -54,6 +54,8 @@ _selected_radio_types = set()
 
 
 def _validate_radio_type(value):
+    if not (CORE.is_esp32 or CORE.is_esp8266):
+        raise cv.Invalid("Wireless M-Bus supports only ESP32 and ESP8266")
     value = cv.one_of(*TRANSCEIVER_NAMES, upper=True)(value)
     if CORE.is_esp8266 and value != "CC1101":
         raise cv.Invalid("ESP8266 currently supports only the CC1101 radio")
